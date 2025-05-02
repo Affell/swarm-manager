@@ -1,0 +1,48 @@
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+}
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 1rem;
+  box-shadow: 0 2px 4px var(--shadow-color);
+  color: var(--text-color);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px var(--shadow-color);
+}
+.node-card .status-dot,
+.stack-card .status-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  margin-right: 0.5rem;
+}
+.status-dot.ready { background: #48bb78; }
+.status-dot.down { background: #f56565; }
+.services-status { display: flex; gap: 0.25rem; margin: 0.5rem 0; }
+.actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+.actions button {
+  padding: 0.25rem 0.5rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  background-color: var(--primary);
+  color: var(--bg-color);
+  transition: background-color 0.2s;
+}
+.actions button:hover {
+  background-color: var(--accent);
+  opacity: 0.9;
+}
