@@ -51,6 +51,32 @@ export const removeImage = async (id: string): Promise<void> => {
   await api.post(`/images/${id}/remove`)
 }
 
+// Prune
+export const pruneImages = async (): Promise<PruneResult> => {
+  const res = await api.post<PruneResult>('/prune/images')
+  return res.data
+}
+
+export const pruneContainers = async (): Promise<PruneResult> => {
+  const res = await api.post<PruneResult>('/prune/containers')
+  return res.data
+}
+
+export const pruneVolumes = async (): Promise<PruneResult> => {
+  const res = await api.post<PruneResult>('/prune/volumes')
+  return res.data
+}
+
+export const pruneNetworks = async (): Promise<PruneResult> => {
+  const res = await api.post<PruneResult>('/prune/networks')
+  return res.data
+}
+
+export const pruneSystem = async (all: boolean = false): Promise<PruneResult> => {
+  const res = await api.post<PruneResult>(`/prune/system?all=${all}`)
+  return res.data
+}
+
 // Version
 export const getVersion = async (): Promise<VersionInfo> => {
   const res = await api.get<VersionInfo>('/version')
@@ -63,3 +89,10 @@ export interface Service { id: string; name: string; image: string; desired_coun
 export interface Stack { name: string; services: Service[] }
 export interface Image { id: string; repo_tags: string[]; size: number }
 export interface VersionInfo { version: string }
+export interface PruneResult { 
+  spaceReclaimed?: number; 
+  imagesDeleted?: number;
+  containersDeleted?: number;
+  volumesDeleted?: number;
+  networksDeleted?: number;
+}

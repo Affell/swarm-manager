@@ -4,6 +4,7 @@ import { Routes, Route, NavLink } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
 import StackDetail from "./pages/StackDetail";
 import Images from "./pages/Images";
+import Cleanup from "./pages/Cleanup";
 import { getVersion } from "./services/api";
 import type { VersionInfo } from "./services/api";
 import swarmLogo from "../public/swarm.svg";
@@ -80,6 +81,14 @@ function App() {
             >
               Images
             </NavLink>
+            <NavLink
+              to="/cleanup"
+              className={({ isActive }) =>
+                isActive ? "nav-link active" : "nav-link"
+              }
+            >
+              Nettoyage
+            </NavLink>
           </nav>
           <button
             className="theme-toggle"
@@ -97,6 +106,7 @@ function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="stacks/:name" element={<StackDetail />} />
           <Route path="/images" element={<Images />} />
+          <Route path="/cleanup" element={<Cleanup />} />
         </Routes>
       </main>
     </div>

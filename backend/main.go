@@ -1,9 +1,13 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"runtime"
+	"strings"
+	"time"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -11,6 +15,16 @@ import (
 	"github.com/axell/Coloc3G/swarm-manager/backend/pkg/infra"
 	"github.com/axell/Coloc3G/swarm-manager/backend/pkg/transport"
 )
+
+// CustomRecoverConfig définit la configuration pour le middleware de récupération personnalisé
+type CustomRecoverConfig struct {
+	// StackSize est le nombre maximum d'entrées de pile à récupérer
+	StackSize int
+	// DisableStackAll désactive la récupération de la pile de tous les goroutines
+	DisableStackAll bool
+	// DisablePrintStack désactive l'impression de la pile de trace
+	DisablePrintStack bool
+}
 
 func main() {
 	// Initialize Docker client
@@ -22,12 +36,14 @@ func main() {
 	// Start Echo
 	e := echo.New()
 	e.HideBanner = true
+
+	// Middleware de récupération de panique amélioré
+	e.Use(customRecover())
+
 	// Structured request logging
 	e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
 		Format: "[${time_rfc3339}] ${method} ${uri} ${status} ${latency_human}\n",
 	}))
-	// Recover from panics
-	e.Use(middleware.Recover())
 
 	// Global HTTP error handler: log and return structured JSON
 	e.HTTPErrorHandler = func(err error, c echo.Context) {
@@ -67,6 +83,13 @@ func main() {
 	g.POST("/nodes/:id/activate", h.ActivateNode)
 	g.GET("/version", h.GetVersion)
 
+	// Nouvelles routes pour les fonctionnalités de prune
+	g.POST("/prune/images", h.PruneImages)
+	g.POST("/prune/containers", h.PruneContainers)
+	g.POST("/prune/volumes", h.PruneVolumes)
+	g.POST("/prune/networks", h.PruneNetworks)
+	g.POST("/prune/system", h.PruneSystem)
+
 	// Configuration améliorée pour servir une application React/Vite
 
 	e.Use(middleware.StaticWithConfig(middleware.StaticConfig{
@@ -90,4 +113,74 @@ func main() {
 		port = "5000"
 	}
 	e.Logger.Fatal(e.Start("0.0.0.0:" + port))
+}
+
+// customRecover retourne un middleware qui récupère les paniques avec un format de log amélioré
+func customRecover() echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			defer func() {
+				if r := recover(); r != nil {
+					err, ok := r.(error)
+					if !ok {
+						err = fmt.Errorf("%v", r)
+					}
+
+					// Formater la stack trace de manière lisible
+					stack := make([]byte, 4096)
+					length := runtime.Stack(stack, false)
+
+					// Formater la stack trace pour la rendre plus lisible
+					stackStr := string(stack[:length])
+					formattedStack := formatStackTrace(stackStr)
+
+					timestamp := time.Now().Format(time.RFC3339)
+					method := c.Request().Method
+					path := c.Request().URL.Path
+
+					// Log formaté avec des informations claires et une mise en forme améliorée
+					message := fmt.Sprintf(
+						"\n----------------------------------\n"+
+							"⚠️  PANIC RECOVERED AT %s\n"+
+							"----------------------------------\n"+
+							"Route: %s %s\n"+
+							"Error: %v\n"+
+							"----------------------------------\n"+
+							"Stack Trace:\n%s\n"+
+							"----------------------------------\n",
+						timestamp, method, path, err, formattedStack)
+
+					c.Logger().Error(message)
+
+					// Renvoyer une erreur HTTP 500
+					c.Error(echo.NewHTTPError(http.StatusInternalServerError, "Internal Server Error"))
+				}
+			}()
+			return next(c)
+		}
+	}
+}
+
+// formatStackTrace améliore la lisibilité de la stack trace
+func formatStackTrace(stackTrace string) string {
+	lines := strings.Split(stackTrace, "\n")
+	var formattedLines []string
+
+	for i, line := range lines {
+		// Ignorer les lignes vides
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+
+		// Ajouter des indentations et formatage pour les lignes de la stack
+		if i > 0 && strings.HasPrefix(line, "\t") {
+			// Ligne de code avec fichier et numéro de ligne
+			formattedLines = append(formattedLines, "  → "+strings.TrimPrefix(line, "\t"))
+		} else {
+			// Ligne avec nom de fonction (goroutine ou fonction)
+			formattedLines = append(formattedLines, line)
+		}
+	}
+
+	return strings.Join(formattedLines, "\n")
 }

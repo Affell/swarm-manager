@@ -1,12 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  getStack,
-  stopService,
-  restartService,
-  serviceLogs,
-} from "../services/api";
+import { getStack, stopService, restartService } from "../services/api";
+import { useServiceLogs } from "../services/useServiceLogs";
 import type { Service } from "../services/api";
 import "./StackDetail.css";
 
@@ -28,13 +24,32 @@ const StackDetail: React.FC = () => {
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: ["stack", name] }),
   });
-  const [logs, setLogs] = useState<string>("");
+
+  // État pour afficher/masquer la fenêtre modale des logs
   const [showLogs, setShowLogs] = useState<string | null>(null);
 
-  const viewLogs = async (id: string) => {
-    const log = await serviceLogs(id);
-    setLogs(log);
+  // Référence à l'élément de conteneur de logs pour l'auto-scrolling
+  const logsEndRef = useRef<HTMLDivElement>(null);
+
+  // Utiliser notre hook WebSocket pour les logs
+  const { logs, isConnected, error, clearLogs } = useServiceLogs(showLogs);
+
+  // Auto-scrolling lorsque de nouveaux logs arrivent
+  useEffect(() => {
+    if (logsEndRef.current) {
+      logsEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [logs]);
+
+  // Fonction pour afficher les logs d'un service
+  const viewLogs = (id: string) => {
+    clearLogs();
     setShowLogs(id);
+  };
+
+  // Fonction pour fermer la fenêtre modale des logs
+  const closeLogs = () => {
+    setShowLogs(null);
   };
 
   return (
@@ -59,8 +74,35 @@ const StackDetail: React.FC = () => {
         ))}
       </div>
       {showLogs && (
-        <div className="logs-modal" onClick={() => setShowLogs(null)}>
-          <pre className="logs-content">{logs}</pre>
+        <div className="logs-modal" onClick={closeLogs}>
+          <div className="logs-content" onClick={(e) => e.stopPropagation()}>
+            <div className="logs-header">
+              <h3>
+                Logs{" "}
+                {isConnected ? (
+                  <span className="status connected">Connected</span>
+                ) : (
+                  <span className="status disconnected">Disconnected</span>
+                )}
+              </h3>
+              <button className="close-btn" onClick={closeLogs}>
+                ×
+              </button>
+            </div>
+            <div className="logs-body">
+              {error && <div className="error-message">{error}</div>}
+              <pre>
+                {logs.map((log, index) => (
+                  <div
+                    key={index}
+                    className="log-line"
+                    dangerouslySetInnerHTML={{ __html: log }}
+                  />
+                ))}
+                <div ref={logsEndRef} />
+              </pre>
+            </div>
+          </div>
         </div>
       )}
     </div>
