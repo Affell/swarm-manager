@@ -39,9 +39,6 @@ WORKDIR /app
 RUN apk --no-cache add ca-certificates tzdata && \
     update-ca-certificates
 
-# Créer un utilisateur non-root pour plus de sécurité
-RUN adduser -D -H -h /app appuser
-
 # Créer le dossier static
 RUN mkdir -p /app/static && chown -R appuser:appuser /app
 
@@ -51,9 +48,6 @@ RUN chmod +x /app/swarm-manager
 
 # Copier les fichiers statiques du frontend
 COPY --from=frontend-builder --chown=appuser:appuser /app/frontend/dist/ /app/static/
-
-# Utiliser l'utilisateur non-root
-USER appuser
 
 # Exposer le port utilisé par l'application
 EXPOSE 5000
