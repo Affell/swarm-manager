@@ -39,9 +39,6 @@ WORKDIR /app
 RUN apk --no-cache add ca-certificates tzdata && \
     update-ca-certificates
 
-# Créer le dossier static
-RUN mkdir -p /app/static && chown -R appuser:appuser /app
-
 # Copier le binaire compilé et lui donner les permissions d'exécution
 COPY --from=backend-builder /app/swarm-manager /app/
 RUN chmod +x /app/swarm-manager
