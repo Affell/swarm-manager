@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Fond de cercle principal -->
+  <circle cx="256" cy="256" r="240" fill="#2563EB" opacity="0.1"/>
+  
+  <!-- Hexagone central (représente Docker) -->
+  <path d="M256 140L346 190V290L256 340L166 290V190L256 140Z" fill="#2563EB" opacity="0.9"/>
+  
+  <!-- Petits cercles représentant un essaim (swarm) -->
+  <circle cx="176" cy="176" r="32" fill="#06B6D4" />
+  <circle cx="336" cy="176" r="32" fill="#06B6D4" />
+  <circle cx="176" cy="336" r="32" fill="#06B6D4" />
+  <circle cx="336" cy="336" r="32" fill="#06B6D4" />
+  <circle cx="256" cy="120" r="32" fill="#06B6D4" />
+  <circle cx="256" cy="392" r="32" fill="#06B6D4" />
+  
+  <!-- Lignes connectant les nœuds (représentant la gestion) -->
+  <line x1="176" y1="176" x2="256" y2="140" stroke="#2563EB" stroke-width="4"/>
+  <line x1="336" y1="176" x2="256" y2="140" stroke="#2563EB" stroke-width="4"/>
+  <line x1="176" y1="336" x2="256" y2="340" stroke="#2563EB" stroke-width="4"/>
+  <line x1="336" y1="336" x2="256" y2="340" stroke="#2563EB" stroke-width="4"/>
+  <line x1="256" y1="120" x2="256" y2="140" stroke="#2563EB" stroke-width="4"/>
+  <line x1="256" y1="340" x2="256" y2="392" stroke="#2563EB" stroke-width="4"/>
+</svg>

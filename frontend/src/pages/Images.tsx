@@ -21,7 +21,11 @@ const Images: React.FC = () => {
       <div className="cards">
         {images?.map((img) => (
           <div key={img.id} className="card image-card">
-            <h3>{img.repo_tags.join(", ")}</h3>
+            <h3>
+              {img.repo_tags && img.repo_tags.length > 0
+                ? img.repo_tags.join(", ")
+                : "<none>:<none>"}
+            </h3>
             <p>Size: {(img.size / (1024 * 1024)).toFixed(2)} MB</p>
             <button onClick={() => removeMutation.mutate(img.id)}>
               Remove

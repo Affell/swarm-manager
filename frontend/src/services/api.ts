@@ -51,8 +51,15 @@ export const removeImage = async (id: string): Promise<void> => {
   await api.post(`/images/${id}/remove`)
 }
 
+// Version
+export const getVersion = async (): Promise<VersionInfo> => {
+  const res = await api.get<VersionInfo>('/version')
+  return res.data
+}
+
 // Types
 export interface Node { id: string; hostname: string; status: string }
 export interface Service { id: string; name: string; image: string; desired_count: number; current_count: number }
 export interface Stack { name: string; services: Service[] }
 export interface Image { id: string; repo_tags: string[]; size: number }
+export interface VersionInfo { version: string }

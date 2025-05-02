@@ -65,6 +65,7 @@ func main() {
 	g.GET("/services/:id/logs", h.ServiceLogs)
 	g.POST("/nodes/:id/drain", h.DrainNode)
 	g.POST("/nodes/:id/activate", h.ActivateNode)
+	g.GET("/version", h.GetVersion)
 
 	// Configuration améliorée pour servir une application React/Vite
 

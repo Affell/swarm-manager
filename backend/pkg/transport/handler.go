@@ -259,3 +259,9 @@ func (h *Handler) ActivateNode(c echo.Context) error {
 	}
 	return c.NoContent(http.StatusNoContent)
 }
+
+func (h *Handler) GetVersion(c echo.Context) error {
+	return c.JSON(http.StatusOK, map[string]string{
+		"version": "1.0.0", // Vous pouvez ajuster cette version selon vos besoins
+	})
+}
