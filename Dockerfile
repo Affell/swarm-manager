@@ -47,7 +47,7 @@ COPY --from=backend-builder /app/swarm-manager /app/
 RUN chmod +x /app/swarm-manager
 
 # Copier les fichiers statiques du frontend
-COPY --from=frontend-builder --chown=appuser:appuser /app/frontend/dist/ /app/static/
+COPY --from=frontend-builder /app/frontend/dist/ /app/static/
 
 # Exposer le port utilisé par l'application
 EXPOSE 5000
