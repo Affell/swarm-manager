@@ -68,20 +68,20 @@ func main() {
 
 	// Configuration améliorée pour servir une application React/Vite
 
-	// 1. Servir les fichiers statiques depuis le dossier static avec une priorité élevée
-	e.Static("/assets", "static/assets")
-	e.Static("/", "static")
-
-	// 2. API routes sont déjà configurées avec le préfixe /api
-
-	// 3. Toutes les autres routes non-API renvoient index.html pour le routage côté client React
-	e.GET("/*", func(c echo.Context) error {
-		// Ne pas traiter les routes API ici
-		if len(c.Path()) >= 4 && c.Path()[:4] == "/api" {
-			return echo.NewHTTPError(http.StatusNotFound, "API endpoint not found")
-		}
-		return c.File("static/index.html")
-	})
+	e.Use(middleware.StaticWithConfig(middleware.StaticConfig{
+		Skipper: nil,
+		// Root directory from where the static content is served.
+		Root: "static",
+		// Index file for serving a directory.
+		// Optional. Default value "index.html".
+		Index: "index.html",
+		// Enable HTML5 mode by forwarding all not-found requests to root so that
+		// SPA (single-page application) can handle the routing.
+		HTML5:      true,
+		Browse:     false,
+		IgnoreBase: false,
+		Filesystem: nil,
+	}))
 
 	// Start server
 	port := os.Getenv("PORT")

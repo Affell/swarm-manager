@@ -44,22 +44,43 @@ func (h *Handler) ListStacks(c echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
+
 	stacksMap := make(map[string][]domain.Service)
+
 	for _, s := range services {
-		stackName := s.Spec.Labels["com.docker.stack.namespace"]
+		// Vérifier si le service a l'étiquette de stack et l'ignorer sinon
+		stackName, exists := s.Spec.Labels["com.docker.stack.namespace"]
+		if !exists || stackName == "" {
+			// Service sans étiquette stack, le mettre dans "unassigned"
+			stackName = "unassigned"
+		}
+
+		// Préparer les données du service avec des vérifications de sécurité
 		svc := domain.Service{
 			ID:           s.ID,
 			Name:         s.Spec.Name,
 			Image:        s.Spec.TaskTemplate.ContainerSpec.Image,
-			DesiredCount: *s.Spec.Mode.Replicated.Replicas,
+			DesiredCount: 0,
 			CurrentCount: uint64(s.ServiceStatus.RunningTasks),
 		}
+
+		// Vérifier si le service est en mode Replicated et a des réplicas définies
+		if s.Spec.Mode.Replicated != nil && s.Spec.Mode.Replicated.Replicas != nil {
+			svc.DesiredCount = *s.Spec.Mode.Replicated.Replicas
+		} else if s.Spec.Mode.Global != nil {
+			// Pour les services en mode global, on ne peut pas spécifier un nombre de réplicas
+			// donc on met la valeur désirée égale au nombre actuel de tâches en cours d'exécution
+			svc.DesiredCount = uint64(s.ServiceStatus.RunningTasks)
+		}
+
 		stacksMap[stackName] = append(stacksMap[stackName], svc)
 	}
+
 	var stacks []domain.Stack
 	for name, svcs := range stacksMap {
 		stacks = append(stacks, domain.Stack{Name: name, Services: svcs})
 	}
+
 	return c.JSON(http.StatusOK, stacks)
 }
 
@@ -71,16 +92,30 @@ func (h *Handler) GetStack(c echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
+
 	var result []domain.Service
 	for _, s := range services {
-		result = append(result, domain.Service{
+		// Préparer les données du service avec des vérifications de sécurité
+		svc := domain.Service{
 			ID:           s.ID,
 			Name:         s.Spec.Name,
 			Image:        s.Spec.TaskTemplate.ContainerSpec.Image,
-			DesiredCount: *s.Spec.Mode.Replicated.Replicas,
+			DesiredCount: 0,
 			CurrentCount: uint64(s.ServiceStatus.RunningTasks),
-		})
+		}
+
+		// Vérifier si le service est en mode Replicated et a des réplicas définies
+		if s.Spec.Mode.Replicated != nil && s.Spec.Mode.Replicated.Replicas != nil {
+			svc.DesiredCount = *s.Spec.Mode.Replicated.Replicas
+		} else if s.Spec.Mode.Global != nil {
+			// Pour les services en mode global, on ne peut pas spécifier un nombre de réplicas
+			// donc on met la valeur désirée égale au nombre actuel de tâches en cours d'exécution
+			svc.DesiredCount = uint64(s.ServiceStatus.RunningTasks)
+		}
+
+		result = append(result, svc)
 	}
+
 	return c.JSON(http.StatusOK, result)
 }
 
