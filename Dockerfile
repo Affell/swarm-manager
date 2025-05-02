@@ -43,7 +43,7 @@ RUN apk --no-cache add ca-certificates tzdata && \
 RUN mkdir -p /app/static && chown -R appuser:appuser /app
 
 # Copier le binaire compilé et lui donner les permissions d'exécution
-COPY --from=backend-builder --chown=appuser:appuser /app/swarm-manager /app/
+COPY --from=backend-builder /app/swarm-manager /app/
 RUN chmod +x /app/swarm-manager
 
 # Copier les fichiers statiques du frontend
