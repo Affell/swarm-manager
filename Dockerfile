@@ -17,9 +17,6 @@ FROM golang:1.24-alpine AS backend-builder
 
 WORKDIR /app
 
-# Installation des dépendances nécessaires
-RUN apk add --no-cache git
-
 # Copier les fichiers go.mod et go.sum
 COPY backend/go.mod backend/go.sum ./
 RUN go mod download
