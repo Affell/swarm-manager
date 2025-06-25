@@ -7,8 +7,8 @@
 [![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Go Report Card](https://goreportcard.com/badge/github.com/Coloc3G/swarm-manager)](https://goreportcard.com/report/github.com/Coloc3G/swarm-manager)
-[![Docker Pulls](https://img.shields.io/docker/pulls/coloc3g/swarm-manager)](https://hub.docker.com/r/coloc3g/swarm-manager)
+[![Go Report Card](https://goreportcard.com/badge/github.com/Affell/swarm-manager)](https://goreportcard.com/report/github.com/Affell/swarm-manager)
+[![GHCR Pulls](https://img.shields.io/badge/GHCR-Pulls-blue)](https://github.com/Affell/swarm-manager/pkgs/container/swarm-manager)
 
 A modern, real-time Docker Swarm management interface with comprehensive monitoring, logging, and cleanup capabilities.
 
@@ -44,7 +44,7 @@ A modern, real-time Docker Swarm management interface with comprehensive monitor
 
 ```bash
 # Clone the repository
-git clone https://github.com/Coloc3G/swarm-manager.git
+git clone https://github.com/Affell/swarm-manager.git
 cd swarm-manager
 
 # Start the application
@@ -237,9 +237,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Support
 
-- 📧 Email: [support@coloc3g.com](mailto:support@coloc3g.com)
-- 🐛 Issues: [GitHub Issues](https://github.com/Coloc3G/swarm-manager/issues)
-- 💬 Discussions: [GitHub Discussions](https://github.com/Coloc3G/swarm-manager/discussions)
+- 📧 Email: [support@affell.fr](mailto:support@affell.fr)
+- 🐛 Issues: [GitHub Issues](https://github.com/Affell/swarm-manager/issues)
+- 💬 Discussions: [GitHub Discussions](https://github.com/Affell/swarm-manager/discussions)
 
 ---
 

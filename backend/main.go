@@ -12,8 +12,8 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 
-	"github.com/axell/Coloc3G/swarm-manager/backend/pkg/infra"
-	"github.com/axell/Coloc3G/swarm-manager/backend/pkg/transport"
+	"github.com/Affell/swarm-manager/backend/pkg/infra"
+	"github.com/Affell/swarm-manager/backend/pkg/transport"
 )
 
 // CustomRecoverConfig définit la configuration pour le middleware de récupération personnalisé

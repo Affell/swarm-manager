@@ -21,7 +21,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
 
-	"github.com/axell/Coloc3G/swarm-manager/backend/pkg/domain"
+	"github.com/Affell/swarm-manager/backend/pkg/domain"
 )
 
 // Configurez l'upgrader WebSocket

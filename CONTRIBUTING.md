@@ -124,9 +124,9 @@ We're especially interested in contributions for:
 
 ## 📞 Getting Help
 
-- 💬 [GitHub Discussions](https://github.com/Coloc3G/swarm-manager/discussions)
-- 🐛 [GitHub Issues](https://github.com/Coloc3G/swarm-manager/issues)
-- 📧 Email: [support@coloc3g.com](mailto:support@coloc3g.com)
+- 💬 [GitHub Discussions](https://github.com/Affell/swarm-manager/discussions)
+- 🐛 [GitHub Issues](https://github.com/Affell/swarm-manager/issues)
+- 📧 Email: [support@affell.fr](mailto:support@affell.fr)
 
 ## 📄 License
 
