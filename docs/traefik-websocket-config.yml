@@ -1,0 +1,36 @@
+# Configuration Traefik pour supporter les WebSockets avec SSL
+# docker-compose.yml ou traefik.yml
+
+version: '3.8'
+
+services:
+  swarm-manager:
+    image: ghcr.io/affell/swarm-manager:latest
+    ports:
+      - "5000:5000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    labels:
+      # Configuration de base
+      - "traefik.enable=true"
+      - "traefik.http.routers.swarm-manager.rule=Host(`swarm.sys.affell.fr`)"
+      - "traefik.http.routers.swarm-manager.tls=true"
+      - "traefik.http.routers.swarm-manager.tls.certresolver=letsencrypt"
+      
+      # Configuration du service
+      - "traefik.http.services.swarm-manager.loadbalancer.server.port=5000"
+      
+      # Configuration pour les WebSockets (IMPORTANT)
+      - "traefik.http.routers.swarm-manager.middlewares=websocket-headers"
+      
+      # Middleware pour les headers WebSocket
+      - "traefik.http.middlewares.websocket-headers.headers.customrequestheaders.X-Forwarded-Proto=https"
+      - "traefik.http.middlewares.websocket-headers.headers.customrequestheaders.X-Forwarded-Ssl=on"
+      
+      # Headers pour WebSocket upgrade (automatique avec Traefik v2+)
+      # Traefik gère automatiquement les headers Upgrade et Connection pour les WebSockets
+
+networks:
+  default:
+    external:
+      name: traefik

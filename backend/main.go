@@ -40,12 +40,23 @@ func main() {
 	// Middleware de récupération de panique amélioré
 	e.Use(customRecover())
 
-	// CORS middleware
+	// CORS middleware avec support WebSocket
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-		AllowOrigins: []string{"*"},
+		AllowOrigins: []string{"https://swarm.sys.affell.fr"},
 		AllowMethods: []string{echo.GET, echo.POST, echo.PUT, echo.DELETE, echo.OPTIONS},
-		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization},
+		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization, "Upgrade", "Connection", "Sec-WebSocket-Key", "Sec-WebSocket-Version", "Sec-WebSocket-Protocol"},
 	}))
+
+	// Middleware pour gérer les headers de reverse proxy (pour WSS)
+	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			// Headers pour les WebSockets derrière un reverse proxy
+			if c.Request().Header.Get("X-Forwarded-Proto") == "https" {
+				c.Request().Header.Set("X-Forwarded-Ssl", "on")
+			}
+			return next(c)
+		}
+	})
 
 	// Structured request logging
 	e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
@@ -88,7 +99,7 @@ func main() {
 	g.POST("/services/:id/restart", h.RestartService)
 	g.GET("/services/:id", h.GetService)
 	g.GET("/services/:id/logs", h.ServiceLogs)
-	g.GET("/swarm/logs", h.SwarmLogs) // Nouveau endpoint pour les logs globaux du swarm
+	g.GET("/logs/swarm", h.SwarmLogs) // Endpoint WebSocket pour les logs globaux du swarm
 	g.POST("/nodes/:id/drain", h.DrainNode)
 	g.POST("/nodes/:id/activate", h.ActivateNode)
 	g.GET("/version", h.GetVersion)

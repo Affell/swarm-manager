@@ -1,0 +1,51 @@
+# Configuration Traefik avancée pour WebSockets
+# Si vous utilisez des fichiers de configuration Traefik
+
+# traefik.yml (configuration statique)
+api:
+  dashboard: true
+
+entryPoints:
+  web:
+    address: ":80"
+  websecure:
+    address: ":443"
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: your-email@domain.com
+      storage: acme.json
+      httpChallenge:
+        entryPoint: web
+
+# Configuration dynamique (docker-compose labels ou fichier)
+http:
+  routers:
+    swarm-manager:
+      rule: "Host(`swarm.sys.affell.fr`)"
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencrypt
+      middlewares:
+        - websocket-headers
+      service: swarm-manager
+
+  middlewares:
+    websocket-headers:
+      headers:
+        customRequestHeaders:
+          X-Forwarded-Proto: "https"
+          X-Forwarded-Ssl: "on"
+        # Traefik gère automatiquement ces headers pour WebSocket:
+        # - Upgrade
+        # - Connection
+        # - Sec-WebSocket-Key
+        # - Sec-WebSocket-Version
+
+  services:
+    swarm-manager:
+      loadBalancer:
+        servers:
+          - url: "http://localhost:5000"

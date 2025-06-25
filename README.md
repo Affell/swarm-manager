@@ -7,7 +7,7 @@
 [![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Go Report Card](https://goreportcard.com/badge/github.com/Affell/swarm-manager)](https://goreportcard.com/report/github.com/Affell/swarm-manager)
+[![Go Report Card](https://goreportcard.com/badge/github.com/Affell/swarm-manager/backend)](https://goreportcard.com/report/github.com/Affell/swarm-manager/backend)
 [![GHCR Pulls](https://img.shields.io/badge/GHCR-Pulls-blue)](https://github.com/Affell/swarm-manager/pkgs/container/swarm-manager)
 
 A modern, real-time Docker Swarm management interface with comprehensive monitoring, logging, and cleanup capabilities.

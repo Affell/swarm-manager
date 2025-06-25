@@ -31,7 +31,7 @@ export const useSwarmLogs = (options: SwarmLogsOptions = {}) => {
     // Note: search is handled client-side, not in WebSocket URL
     
     const queryString = params.toString();
-    const wsUrl = `${protocol}//${hostname}:${backendPort}/api/swarm/logs${queryString ? `?${queryString}` : ''}`;
+    const wsUrl = `${protocol}//${hostname}:${backendPort}/api/logs/swarm${queryString ? `?${queryString}` : ''}`;
 
     try {
       const ws = new WebSocket(wsUrl);
