@@ -99,7 +99,7 @@ func main() {
 	g.POST("/services/:id/restart", h.RestartService)
 	g.GET("/services/:id", h.GetService)
 	g.GET("/services/:id/logs", h.ServiceLogs)
-	g.GET("/logs/swarm", h.SwarmLogs) // Endpoint WebSocket pour les logs globaux du swarm
+	g.GET("/swarm/logs", h.SwarmLogs) // Endpoint WebSocket pour les logs globaux du swarm
 	g.POST("/nodes/:id/drain", h.DrainNode)
 	g.POST("/nodes/:id/activate", h.ActivateNode)
 	g.GET("/version", h.GetVersion)
