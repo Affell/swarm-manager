@@ -1,98 +1,189 @@
-import axios from 'axios'
+const API_BASE_URL = 'http://localhost:5000/api';
 
-const api = axios.create({ baseURL: '/api' })
-
-// Nodes
-export const listNodes = async (): Promise<Node[]> => {
-  const res = await api.get<Node[]>('/nodes')
-  return res.data
-}
-export const drainNode = async (id: string): Promise<void> => {
-  await api.post(`/nodes/${id}/drain`)
-}
-export const activateNode = async (id: string): Promise<void> => {
-  await api.post(`/nodes/${id}/activate`)
+export interface Node {
+  id: string;
+  hostname: string;
+  status: string;
+  availability: string;
+  role: string;
+  cpu: string;
+  memory: string;
+  ipAddress: string;
 }
 
-// Stacks
-export const listStacks = async (): Promise<Stack[]> => {
-  const res = await api.get<Stack[]>('/stacks')
-  return res.data
-}
-export const getStack = async (name: string): Promise<Service[]> => {
-  const res = await api.get<Service[]>(`/stacks/${name}`)
-  return res.data
-}
-export const stopStack = async (name: string): Promise<void> => {
-  await api.post(`/stacks/${name}/stop`)
-}
-export const startStack = async (name: string): Promise<void> => {
-  await api.post(`/stacks/${name}/start`)
+export interface Stack {
+  name: string;
+  services: Service[];
 }
 
-// Services
-export const stopService = async (id: string): Promise<void> => {
-  await api.post(`/services/${id}/stop`)
-}
-export const restartService = async (id: string): Promise<void> => {
-  await api.post(`/services/${id}/restart`)
-}
-export const serviceLogs = async (id: string): Promise<string> => {
-  const res = await api.get<string>(`/services/${id}/logs`, { responseType: 'text' })
-  return res.data
+export interface Service {
+  id: string;
+  name: string;
+  image: string;
+  desired_count: number;
+  current_count: number;
 }
 
-// Images
-export const listImages = async (): Promise<Image[]> => {
-  const res = await api.get<Image[]>('/images')
-  return res.data
-}
-export const removeImage = async (id: string): Promise<void> => {
-  await api.post(`/images/${id}/remove`)
+export interface Image {
+  id: string;
+  repo_tags: string[];
+  size: number;
 }
 
-// Prune
-export const pruneImages = async (): Promise<PruneResult> => {
-  const res = await api.post<PruneResult>('/prune/images')
-  return res.data
+class ApiService {
+  private async fetch(endpoint: string, options?: RequestInit): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers,
+      },
+      ...options,
+    });
+
+    if (!response.ok) {
+      throw new Error(`API Error: ${response.status} ${response.statusText}`);
+    }
+
+    // Handle 204 No Content responses
+    if (response.status === 204) {
+      return null;
+    }
+
+    // Handle responses with JSON content
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      return response.json();
+    }
+
+    return null;
+  }
+
+  // Nodes API
+  async getNodes(): Promise<Node[]> {
+    return this.fetch('/nodes');
+  }
+
+  async drainNode(nodeId: string): Promise<void> {
+    await this.fetch(`/nodes/${nodeId}/drain`, {
+      method: 'POST',
+    });
+  }
+
+  async activateNode(nodeId: string): Promise<void> {
+    await this.fetch(`/nodes/${nodeId}/activate`, {
+      method: 'POST',
+    });
+  }
+
+  async getNodeServices(nodeId: string): Promise<Service[]> {
+    return this.fetch(`/nodes/${nodeId}/services`);
+  }
+
+  // Stacks API
+  async getStacks(): Promise<Stack[]> {
+    return this.fetch('/stacks');
+  }
+
+  async getStack(name: string): Promise<Service[]> {
+    return this.fetch(`/stacks/${name}`);
+  }
+
+  async stopStack(name: string): Promise<void> {
+    await this.fetch(`/stacks/${name}/stop`, {
+      method: 'POST',
+    });
+  }
+
+  async startStack(name: string): Promise<void> {
+    await this.fetch(`/stacks/${name}/start`, {
+      method: 'POST',
+    });
+  }
+
+  // Images API
+  async getImages(): Promise<Image[]> {
+    return this.fetch('/images');
+  }
+
+  async deleteImage(imageId: string): Promise<void> {
+    await this.fetch(`/images/${imageId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async pruneImages(): Promise<void> {
+    await this.fetch('/images/prune', {
+      method: 'POST',
+    });
+  }
+
+  // Services API
+  async stopService(serviceId: string): Promise<void> {
+    await this.fetch(`/services/${serviceId}/stop`, {
+      method: 'POST',
+    });
+  }
+
+  async restartService(serviceId: string): Promise<void> {
+    await this.fetch(`/services/${serviceId}/restart`, {
+      method: 'POST',
+    });
+  }
+
+  async getService(serviceId: string): Promise<any> {
+    return this.fetch(`/services/${serviceId}`);
+  }
+
+  // Cleanup Estimates API
+  async getCleanupEstimate(): Promise<{
+    unused_images: number;
+    stopped_containers: number;
+    unused_networks: number;
+    unused_volumes: number;
+    total_estimate: number;
+  }> {
+    return await this.fetch('/cleanup/estimate');
+  }
+
+  async getSystemInfo(): Promise<{
+    disk_usage: any;
+    system_info: any;
+    containers_count: number;
+    images_count: number;
+    volumes_count: number;
+    networks_count: number;
+  }> {
+    return await this.fetch('/system/info');
+  }
+
+  // Advanced Cleanup API
+  async pruneContainers(): Promise<void> {
+    await this.fetch('/prune/containers', {
+      method: 'POST',
+    });
+  }
+
+  async pruneVolumes(): Promise<void> {
+    await this.fetch('/prune/volumes', {
+      method: 'POST',
+    });
+  }
+
+  async pruneNetworks(): Promise<void> {
+    await this.fetch('/prune/networks', {
+      method: 'POST',
+    });
+  }
+
+  async pruneSystem(includeVolumes: boolean = false): Promise<{
+    containers_deleted: string[];
+    networks_deleted: string[];
+    space_reclaimed: number;
+  }> {
+    return await this.fetch(`/prune/system${includeVolumes ? '?all=true' : ''}`, {
+      method: 'POST',
+    });
+  }
 }
 
-export const pruneContainers = async (): Promise<PruneResult> => {
-  const res = await api.post<PruneResult>('/prune/containers')
-  return res.data
-}
-
-export const pruneVolumes = async (): Promise<PruneResult> => {
-  const res = await api.post<PruneResult>('/prune/volumes')
-  return res.data
-}
-
-export const pruneNetworks = async (): Promise<PruneResult> => {
-  const res = await api.post<PruneResult>('/prune/networks')
-  return res.data
-}
-
-export const pruneSystem = async (all: boolean = false): Promise<PruneResult> => {
-  const res = await api.post<PruneResult>(`/prune/system?all=${all}`)
-  return res.data
-}
-
-// Version
-export const getVersion = async (): Promise<VersionInfo> => {
-  const res = await api.get<VersionInfo>('/version')
-  return res.data
-}
-
-// Types
-export interface Node { id: string; hostname: string; status: string }
-export interface Service { id: string; name: string; image: string; desired_count: number; current_count: number }
-export interface Stack { name: string; services: Service[] }
-export interface Image { id: string; repo_tags: string[]; size: number }
-export interface VersionInfo { version: string }
-export interface PruneResult { 
-  spaceReclaimed?: number; 
-  imagesDeleted?: number;
-  containersDeleted?: number;
-  volumesDeleted?: number;
-  networksDeleted?: number;
-}
+export const apiService = new ApiService();

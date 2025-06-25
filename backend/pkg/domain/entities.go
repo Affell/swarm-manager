@@ -2,9 +2,14 @@ package domain
 
 // Node represents a Docker Swarm node
 type Node struct {
-	ID       string `json:"id"`
-	Hostname string `json:"hostname"`
-	Status   string `json:"status"`
+	ID           string `json:"id"`
+	Hostname     string `json:"hostname"`
+	Status       string `json:"status"`
+	Availability string `json:"availability"`
+	Role         string `json:"role"`
+	CPU          string `json:"cpu"`
+	Memory       string `json:"memory"`
+	IPAddress    string `json:"ipAddress"`
 }
 
 // Service represents a Docker Swarm service

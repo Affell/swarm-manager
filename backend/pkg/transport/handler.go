@@ -5,13 +5,18 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	dockerTypes "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
+	"github.com/docker/docker/api/types/mount"
+	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/api/types/swarm"
+	"github.com/docker/docker/api/types/system"
+	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
 	"github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
@@ -46,12 +51,42 @@ func (h *Handler) ListNodes(c echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
+
 	var result []domain.Node
 	for _, n := range nodes {
+		// Extraire le rôle du nœud
+		role := "Worker"
+		if n.Spec.Role == swarm.NodeRoleManager {
+			role = "Manager"
+		}
+
+		// Extraire les informations CPU et Memory
+		cpu := "Unknown"
+		memory := "Unknown"
+		if n.Description.Resources.NanoCPUs > 0 {
+			cpuCores := float64(n.Description.Resources.NanoCPUs) / 1e9
+			cpu = fmt.Sprintf("%.1f cores", cpuCores)
+		}
+		if n.Description.Resources.MemoryBytes > 0 {
+			memoryGB := float64(n.Description.Resources.MemoryBytes) / (1024 * 1024 * 1024)
+			memory = fmt.Sprintf("%.1f GB", memoryGB)
+		}
+
+		// Extraire l'adresse IP
+		ipAddress := "Unknown"
+		if n.Status.Addr != "" {
+			ipAddress = n.Status.Addr
+		}
+
 		result = append(result, domain.Node{
-			ID:       n.ID,
-			Hostname: n.Description.Hostname,
-			Status:   string(n.Status.State),
+			ID:           n.ID,
+			Hostname:     n.Description.Hostname,
+			Status:       string(n.Status.State),
+			Availability: string(n.Spec.Availability),
+			Role:         role,
+			CPU:          cpu,
+			Memory:       memory,
+			IPAddress:    ipAddress,
 		})
 	}
 	return c.JSON(http.StatusOK, result)
@@ -87,9 +122,20 @@ func (h *Handler) ListStacks(c echo.Context) error {
 			CurrentCount: 0, // Par défaut à 0
 		}
 
-		// Récupérer le nombre de tâches en cours si ServiceStatus n'est pas nil
-		if s.ServiceStatus != nil {
-			svc.CurrentCount = uint64(s.ServiceStatus.RunningTasks)
+		// Récupérer le nombre de tâches en cours en utilisant TaskList
+		taskFilter := filters.NewArgs()
+		taskFilter.Add("service", s.ID)
+		taskFilter.Add("desired-state", "running") // Seulement les tâches en cours d'exécution
+		tasks, err := h.dockerClient.TaskList(context.Background(), dockerTypes.TaskListOptions{Filters: taskFilter})
+		if err == nil {
+			// Compter les tâches qui sont effectivement en cours d'exécution
+			runningTasks := 0
+			for _, task := range tasks {
+				if task.Status.State == swarm.TaskState("running") {
+					runningTasks++
+				}
+			}
+			svc.CurrentCount = uint64(runningTasks)
 		}
 
 		// Vérifier si le service est en mode Replicated et a des réplicas définies
@@ -97,10 +143,7 @@ func (h *Handler) ListStacks(c echo.Context) error {
 			svc.DesiredCount = *s.Spec.Mode.Replicated.Replicas
 		} else if s.Spec.Mode.Global != nil {
 			// Pour les services en mode global, on utilise le nombre actuel comme nombre désiré
-			// mais seulement si ServiceStatus n'est pas nil
-			if s.ServiceStatus != nil {
-				svc.DesiredCount = uint64(s.ServiceStatus.RunningTasks)
-			}
+			svc.DesiredCount = svc.CurrentCount
 		}
 
 		stacksMap[stackName] = append(stacksMap[stackName], svc)
@@ -139,9 +182,20 @@ func (h *Handler) GetStack(c echo.Context) error {
 			CurrentCount: 0, // Par défaut à 0
 		}
 
-		// Récupérer le nombre de tâches en cours si ServiceStatus n'est pas nil
-		if s.ServiceStatus != nil {
-			svc.CurrentCount = uint64(s.ServiceStatus.RunningTasks)
+		// Récupérer le nombre de tâches en cours en utilisant TaskList
+		taskFilter := filters.NewArgs()
+		taskFilter.Add("service", s.ID)
+		taskFilter.Add("desired-state", "running") // Seulement les tâches en cours d'exécution
+		tasks, err := h.dockerClient.TaskList(context.Background(), dockerTypes.TaskListOptions{Filters: taskFilter})
+		if err == nil {
+			// Compter les tâches qui sont effectivement en cours d'exécution
+			runningTasks := 0
+			for _, task := range tasks {
+				if task.Status.State == swarm.TaskState("running") {
+					runningTasks++
+				}
+			}
+			svc.CurrentCount = uint64(runningTasks)
 		}
 
 		// Vérifier si le service est en mode Replicated et a des réplicas définies
@@ -149,10 +203,7 @@ func (h *Handler) GetStack(c echo.Context) error {
 			svc.DesiredCount = *s.Spec.Mode.Replicated.Replicas
 		} else if s.Spec.Mode.Global != nil {
 			// Pour les services en mode global, on utilise le nombre actuel comme nombre désiré
-			// mais seulement si ServiceStatus n'est pas nil
-			if s.ServiceStatus != nil {
-				svc.DesiredCount = uint64(s.ServiceStatus.RunningTasks)
-			}
+			svc.DesiredCount = svc.CurrentCount
 		}
 
 		result = append(result, svc)
@@ -357,10 +408,30 @@ func (h *Handler) ServiceLogs(c echo.Context) error {
 			// Lire à partir du flux de logs
 			n, err := reader.Read(buffer)
 			if n > 0 {
-				// Envoyer uniquement les octets lus au client
-				// Utiliser BinaryMessage pour éviter les problèmes d'encodage UTF-8
-				if err := ws.WriteMessage(websocket.BinaryMessage, buffer[:n]); err != nil {
-					return nil
+				// Convertir les données binaires en string et diviser par lignes
+				logData := string(buffer[:n])
+				lines := strings.SplitSeq(logData, "\n")
+
+				for line := range lines {
+					// Ignorer les lignes vides
+					if strings.TrimSpace(line) == "" {
+						continue
+					}
+
+					// Enlever les 8 premiers octets de chaque ligne
+					if len(line) > 8 {
+						line = line[8:]
+					}
+
+					// Nettoyer et envoyer ligne par ligne
+					cleanLine := strings.TrimSpace(line)
+					if cleanLine != "" {
+						formattedLog := cleanLine + "\n"
+						cleanMsg := strings.ToValidUTF8(formattedLog, "")
+						if err := ws.WriteMessage(websocket.TextMessage, []byte(cleanMsg)); err != nil {
+							return nil
+						}
+					}
 				}
 			}
 			if err != nil {
@@ -567,4 +638,495 @@ func (h *Handler) PruneSystem(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, response)
+}
+
+// GetCleanupEstimate retourne une estimation de l'espace qui peut être libéré
+func (h *Handler) GetCleanupEstimate(c echo.Context) error {
+	if h == nil || h.dockerClient == nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Docker client not initialized"})
+	}
+
+	type CleanupEstimate struct {
+		UnusedImages      int64 `json:"unused_images"`
+		StoppedContainers int64 `json:"stopped_containers"`
+		UnusedNetworks    int64 `json:"unused_networks"`
+		UnusedVolumes     int64 `json:"unused_volumes"`
+		TotalEstimate     int64 `json:"total_estimate"`
+	}
+
+	estimate := CleanupEstimate{}
+
+	// Estimer les images inutilisées
+	images, err := h.dockerClient.ImageList(context.Background(), image.ListOptions{})
+	if err == nil {
+		for _, img := range images {
+			if len(img.RepoTags) == 0 || (len(img.RepoTags) == 1 && img.RepoTags[0] == "<none>:<none>") {
+				estimate.UnusedImages += img.Size
+			}
+		}
+	}
+
+	// Estimer les conteneurs arrêtés
+	containers, err := h.dockerClient.ContainerList(context.Background(), container.ListOptions{All: true})
+	if err == nil {
+		for _, container := range containers {
+			if container.State != "running" {
+				estimate.StoppedContainers += container.SizeRw
+			}
+		}
+	}
+
+	// Estimer les réseaux inutilisés
+	networks, err := h.dockerClient.NetworkList(context.Background(), network.ListOptions{})
+	if err == nil {
+		for _, network := range networks {
+			// Les réseaux par défaut ne sont pas comptés
+			if network.Name != "bridge" && network.Name != "host" && network.Name != "none" {
+				if len(network.Containers) == 0 {
+					estimate.UnusedNetworks += 1024 * 1024 // Estimation approximative
+				}
+			}
+		}
+	}
+
+	// Estimer les volumes inutilisés
+	volumes, err := h.dockerClient.VolumeList(context.Background(), volume.ListOptions{})
+	if err == nil {
+		for _, vol := range volumes.Volumes {
+			// Vérifier si le volume est utilisé
+			containers, err := h.dockerClient.ContainerList(context.Background(), container.ListOptions{All: true})
+			if err == nil {
+				used := false
+				for _, container := range containers {
+					for _, mount := range container.Mounts {
+						if mount.Name == vol.Name {
+							used = true
+							break
+						}
+					}
+					if used {
+						break
+					}
+				}
+				if !used {
+					estimate.UnusedVolumes += 100 * 1024 * 1024 // Estimation approximative
+				}
+			}
+		}
+	}
+
+	estimate.TotalEstimate = estimate.UnusedImages + estimate.StoppedContainers + estimate.UnusedNetworks + estimate.UnusedVolumes
+
+	return c.JSON(http.StatusOK, estimate)
+}
+
+// GetSystemInfo retourne les informations système et l'utilisation du disque
+func (h *Handler) GetSystemInfo(c echo.Context) error {
+	if h == nil || h.dockerClient == nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Docker client not initialized"})
+	}
+
+	type SystemInfo struct {
+		DiskUsage       dockerTypes.DiskUsage `json:"disk_usage"`
+		SystemInfo      system.Info           `json:"system_info"`
+		ContainersCount int                   `json:"containers_count"`
+		ImagesCount     int                   `json:"images_count"`
+		VolumesCount    int                   `json:"volumes_count"`
+		NetworksCount   int                   `json:"networks_count"`
+	}
+
+	info := SystemInfo{}
+
+	// Obtenir l'utilisation du disque
+	diskUsage, err := h.dockerClient.DiskUsage(context.Background(), dockerTypes.DiskUsageOptions{})
+	if err == nil {
+		info.DiskUsage = diskUsage
+	}
+
+	// Obtenir les informations système
+	sysInfo, err := h.dockerClient.Info(context.Background())
+	if err == nil {
+		info.SystemInfo = sysInfo
+	}
+
+	// Compter les ressources
+	containers, err := h.dockerClient.ContainerList(context.Background(), container.ListOptions{All: true})
+	if err == nil {
+		info.ContainersCount = len(containers)
+	}
+
+	images, err := h.dockerClient.ImageList(context.Background(), image.ListOptions{})
+	if err == nil {
+		info.ImagesCount = len(images)
+	}
+
+	volumes, err := h.dockerClient.VolumeList(context.Background(), volume.ListOptions{})
+	if err == nil {
+		info.VolumesCount = len(volumes.Volumes)
+	}
+
+	networks, err := h.dockerClient.NetworkList(context.Background(), network.ListOptions{})
+	if err == nil {
+		info.NetworksCount = len(networks)
+	}
+
+	return c.JSON(http.StatusOK, info)
+}
+
+// GetNodeServices retourne les services qui s'exécutent sur une node spécifique
+func (h *Handler) GetNodeServices(c echo.Context) error {
+	// Vérifier que le client Docker est initialisé
+	if h == nil || h.dockerClient == nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Docker client not initialized"})
+	}
+
+	nodeID := c.Param("id")
+
+	// Récupérer tous les services
+	services, err := h.dockerClient.ServiceList(context.Background(), dockerTypes.ServiceListOptions{})
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	var nodeServices []domain.Service
+
+	for _, s := range services {
+		// Récupérer les tâches pour ce service
+		taskFilter := filters.NewArgs()
+		taskFilter.Add("service", s.ID)
+		tasks, err := h.dockerClient.TaskList(context.Background(), dockerTypes.TaskListOptions{Filters: taskFilter})
+		if err != nil {
+			continue // Ignorer les erreurs et passer au service suivant
+		}
+
+		// Vérifier si ce service a des tâches sur cette node
+		hasTaskOnNode := false
+		runningTasksOnNode := 0
+		for _, task := range tasks {
+			if task.NodeID == nodeID {
+				hasTaskOnNode = true
+				if task.Status.State == swarm.TaskState("running") {
+					runningTasksOnNode++
+				}
+			}
+		}
+
+		if hasTaskOnNode {
+			// Préparer les données du service
+			svc := domain.Service{
+				ID:           s.ID,
+				Name:         s.Spec.Name,
+				Image:        s.Spec.TaskTemplate.ContainerSpec.Image,
+				DesiredCount: 0,
+				CurrentCount: uint64(runningTasksOnNode), // Nombre de tâches en cours sur cette node
+			}
+
+			// Déterminer le nombre désiré de réplicas
+			if s.Spec.Mode.Replicated != nil && s.Spec.Mode.Replicated.Replicas != nil {
+				svc.DesiredCount = *s.Spec.Mode.Replicated.Replicas
+			} else if s.Spec.Mode.Global != nil {
+				// Pour les services en mode global, chaque node active devrait avoir une tâche
+				svc.DesiredCount = 1
+			}
+
+			nodeServices = append(nodeServices, svc)
+		}
+	}
+
+	return c.JSON(http.StatusOK, nodeServices)
+}
+
+// GetService retourne les détails d'un service spécifique
+func (h *Handler) GetService(c echo.Context) error {
+	// Vérifier que le client Docker est initialisé
+	if h == nil || h.dockerClient == nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Docker client not initialized"})
+	}
+
+	serviceID := c.Param("id")
+
+	// Récupérer les détails du service
+	service, _, err := h.dockerClient.ServiceInspectWithRaw(context.Background(), serviceID, dockerTypes.ServiceInspectOptions{})
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	// Préparer les données du service
+	svc := domain.Service{
+		ID:           service.ID,
+		Name:         service.Spec.Name,
+		Image:        service.Spec.TaskTemplate.ContainerSpec.Image,
+		DesiredCount: 0,
+		CurrentCount: 0,
+	}
+
+	// Récupérer le nombre de tâches en cours
+	taskFilter := filters.NewArgs()
+	taskFilter.Add("service", service.ID)
+	taskFilter.Add("desired-state", "running")
+	tasks, err := h.dockerClient.TaskList(context.Background(), dockerTypes.TaskListOptions{Filters: taskFilter})
+	if err == nil {
+		runningTasks := 0
+		for _, task := range tasks {
+			if task.Status.State == swarm.TaskState("running") {
+				runningTasks++
+			}
+		}
+		svc.CurrentCount = uint64(runningTasks)
+	}
+
+	// Déterminer le nombre désiré de réplicas
+	if service.Spec.Mode.Replicated != nil && service.Spec.Mode.Replicated.Replicas != nil {
+		svc.DesiredCount = *service.Spec.Mode.Replicated.Replicas
+	} else if service.Spec.Mode.Global != nil {
+		svc.DesiredCount = svc.CurrentCount
+	}
+
+	// Ajouter des informations détaillées sur le service
+	type ServiceDetails struct {
+		domain.Service
+		CreatedAt    time.Time                   `json:"created_at"`
+		UpdatedAt    time.Time                   `json:"updated_at"`
+		Version      uint64                      `json:"version"`
+		Labels       map[string]string           `json:"labels"`
+		Constraints  []string                    `json:"constraints"`
+		Networks     []string                    `json:"networks"`
+		Ports        []swarm.PortConfig          `json:"ports"`
+		Mounts       []mount.Mount               `json:"mounts"`
+		Env          []string                    `json:"env"`
+		UpdateConfig *swarm.UpdateConfig         `json:"update_config"`
+		Resources    *swarm.ResourceRequirements `json:"resources"`
+	}
+
+	details := ServiceDetails{
+		Service:   svc,
+		CreatedAt: service.CreatedAt,
+		UpdatedAt: service.UpdatedAt,
+		Version:   service.Version.Index,
+		Labels:    service.Spec.Labels,
+	}
+
+	// Contraintes de placement
+	if service.Spec.TaskTemplate.Placement != nil {
+		details.Constraints = service.Spec.TaskTemplate.Placement.Constraints
+	}
+
+	// Réseaux
+	for _, network := range service.Spec.TaskTemplate.Networks {
+		details.Networks = append(details.Networks, network.Target)
+	}
+
+	// Ports
+	if service.Spec.EndpointSpec != nil {
+		details.Ports = service.Spec.EndpointSpec.Ports
+	}
+
+	// Montages
+	details.Mounts = service.Spec.TaskTemplate.ContainerSpec.Mounts
+
+	// Variables d'environnement
+	details.Env = service.Spec.TaskTemplate.ContainerSpec.Env
+
+	// Configuration de mise à jour
+	details.UpdateConfig = service.Spec.UpdateConfig
+
+	// Ressources
+	details.Resources = service.Spec.TaskTemplate.Resources
+
+	return c.JSON(http.StatusOK, details)
+}
+
+// SwarmLogs fournit un flux WebSocket des logs de tous les services du swarm
+func (h *Handler) SwarmLogs(c echo.Context) error {
+	if h == nil || h.dockerClient == nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Docker client not initialized"})
+	}
+
+	// Mise à niveau vers WebSocket
+	ws, err := upgrader.Upgrade(c.Response(), c.Request(), nil)
+	if err != nil {
+		return err
+	}
+	defer ws.Close()
+
+	// Paramètres de requête pour filtres (search est géré côté client)
+	stackFilter := c.QueryParam("stack")
+	serviceFilter := c.QueryParam("service")
+	// searchTerm est supprimé - le filtrage de recherche se fait côté client
+
+	// Context avec timeout
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Récupérer tous les services du swarm
+	services, err := h.dockerClient.ServiceList(ctx, dockerTypes.ServiceListOptions{})
+	if err != nil {
+		ws.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("Error getting services: %s", err.Error())))
+		return nil
+	}
+
+	// Filtrer les services selon les critères
+	var filteredServices []swarm.Service
+	for _, service := range services {
+		serviceName := service.Spec.Name
+
+		// Filtrer par stack si spécifié
+		if stackFilter != "" {
+			if stackLabel, exists := service.Spec.Labels["com.docker.stack.namespace"]; !exists || stackLabel != stackFilter {
+				continue
+			}
+		}
+
+		// Filtrer par service si spécifié
+		if serviceFilter != "" {
+			if serviceName != serviceFilter {
+				continue
+			}
+		}
+
+		filteredServices = append(filteredServices, service)
+	}
+
+	// Canal pour les messages WebSocket
+	messages := make(chan string, 100)
+	done := make(chan struct{})
+
+	// Goroutine pour lire les messages WebSocket du client (pour gérer les déconnexions)
+	go func() {
+		defer close(done)
+		for {
+			_, _, err := ws.ReadMessage()
+			if err != nil {
+				return
+			}
+		}
+	}()
+
+	// Goroutine pour chaque service pour streamer les logs
+	for _, service := range filteredServices {
+		go func(svc swarm.Service) {
+			serviceName := svc.Spec.Name
+
+			// Configuration des options de logs
+			opts := container.LogsOptions{
+				ShowStdout: true,
+				ShowStderr: true,
+				Follow:     true,
+				Tail:       "50", // Dernières 50 lignes
+				Timestamps: true,
+			}
+
+			// Obtenir le reader de logs
+			reader, err := h.dockerClient.ServiceLogs(ctx, svc.ID, opts)
+			if err != nil {
+				messages <- fmt.Sprintf("[ERROR] %s: Failed to get logs: %s", serviceName, err.Error())
+				return
+			}
+			defer reader.Close()
+
+			// Buffer pour lire les logs
+			buf := make([]byte, 4096)
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-done:
+					return
+				default:
+					n, err := reader.Read(buf)
+					if err != nil {
+						if err != io.EOF {
+							messages <- fmt.Sprintf("[ERROR] %s: Error reading logs: %s", serviceName, err.Error())
+						}
+						return
+					}
+
+					if n > 0 {
+						// Convertir les données binaires en string
+						logData := string(buf[:n])
+
+						// Diviser par lignes
+						lines := strings.SplitSeq(logData, "\n")
+						for line := range lines {
+							// Ignorer les lignes vides
+							if strings.TrimSpace(line) == "" {
+								continue
+							}
+
+							if len(line) > 8 {
+								line = line[8:]
+							}
+
+							// Le filtrage par terme de recherche est géré côté client
+							// Préfixer avec le nom du service et nettoyer
+							formattedLog := fmt.Sprintf("[%s] %s\n", serviceName, strings.TrimSpace(line))
+
+							select {
+							case messages <- formattedLog:
+							case <-ctx.Done():
+								return
+							case <-done:
+								return
+							default:
+								// Canal plein, ignorer ce message
+							}
+						}
+					}
+				}
+			}
+		}(service)
+	}
+
+	// Goroutine pour envoyer les messages via WebSocket
+	go func() {
+		ticker := time.NewTicker(100 * time.Millisecond) // Batch messages
+		defer ticker.Stop()
+
+		var batch []string
+
+		for {
+			select {
+			case msg := <-messages:
+				batch = append(batch, msg)
+
+				if len(batch) >= 10 {
+					combinedMsg := ""
+					for _, m := range batch {
+						combinedMsg += m
+					}
+
+					cleanMsg := strings.ToValidUTF8(combinedMsg, "")
+					err := ws.WriteMessage(websocket.TextMessage, []byte(cleanMsg))
+					if err != nil {
+						return
+					}
+					batch = nil
+				}
+
+			case <-ticker.C:
+				if len(batch) > 0 {
+					combinedMsg := ""
+					for _, m := range batch {
+						combinedMsg += m
+					}
+
+					cleanMsg := strings.ToValidUTF8(combinedMsg, "")
+					err := ws.WriteMessage(websocket.TextMessage, []byte(cleanMsg))
+					if err != nil {
+						return
+					}
+					batch = nil
+				}
+
+			case <-done:
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	// Attendre la fermeture de la connexion
+	<-done
+	return nil
 }

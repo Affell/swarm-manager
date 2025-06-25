@@ -40,6 +40,13 @@ func main() {
 	// Middleware de récupération de panique amélioré
 	e.Use(customRecover())
 
+	// CORS middleware
+	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+		AllowOrigins: []string{"*"},
+		AllowMethods: []string{echo.GET, echo.POST, echo.PUT, echo.DELETE, echo.OPTIONS},
+		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization},
+	}))
+
 	// Structured request logging
 	e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
 		Format: "[${time_rfc3339}] ${method} ${uri} ${status} ${latency_human}\n",
@@ -70,6 +77,7 @@ func main() {
 	// Routes
 	g := e.Group("/api")
 	g.GET("/nodes", h.ListNodes)
+	g.GET("/nodes/:id/services", h.GetNodeServices)
 	g.GET("/stacks", h.ListStacks)
 	g.GET("/stacks/:name", h.GetStack)
 	g.POST("/stacks/:name/stop", h.StopStack)
@@ -78,7 +86,9 @@ func main() {
 	g.POST("/images/:id/remove", h.RemoveImage)
 	g.POST("/services/:id/stop", h.StopService)
 	g.POST("/services/:id/restart", h.RestartService)
+	g.GET("/services/:id", h.GetService)
 	g.GET("/services/:id/logs", h.ServiceLogs)
+	g.GET("/swarm/logs", h.SwarmLogs) // Nouveau endpoint pour les logs globaux du swarm
 	g.POST("/nodes/:id/drain", h.DrainNode)
 	g.POST("/nodes/:id/activate", h.ActivateNode)
 	g.GET("/version", h.GetVersion)
@@ -89,6 +99,10 @@ func main() {
 	g.POST("/prune/volumes", h.PruneVolumes)
 	g.POST("/prune/networks", h.PruneNetworks)
 	g.POST("/prune/system", h.PruneSystem)
+
+	// Routes pour les estimations de cleanup et informations système
+	g.GET("/cleanup/estimate", h.GetCleanupEstimate)
+	g.GET("/system/info", h.GetSystemInfo)
 
 	// Configuration améliorée pour servir une application React/Vite
 

@@ -1,116 +1,37 @@
-import { useState, useEffect } from "react";
-import "./App.css";
-import { Routes, Route, NavLink } from "react-router-dom";
-import Dashboard from "./pages/Dashboard";
-import StackDetail from "./pages/StackDetail";
-import Images from "./pages/Images";
-import Cleanup from "./pages/Cleanup";
-import { getVersion } from "./services/api";
-import type { VersionInfo } from "./services/api";
-import swarmLogo from "../public/swarm.svg";
+import { Toaster } from "@/components/ui/toaster";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Index from "./pages/Index";
+import SwarmNodes from "./pages/SwarmNodes";
+import SwarmStack from "./pages/SwarmStack";
+import SwarmCleanup from "./pages/SwarmCleanup";
+import SwarmLogs from "./pages/SwarmLogs";
+import ServiceDetail from "./pages/ServiceDetail";
+import NotFound from "./pages/NotFound";
 
-function App() {
-  const [version, setVersion] = useState<string>("");
-  const [darkMode, setDarkMode] = useState<boolean>(() => {
-    // Récupérer le mode depuis localStorage, sinon utiliser la préférence du système
-    const savedMode = localStorage.getItem("darkMode");
-    if (savedMode !== null) {
-      return savedMode === "true";
-    }
-    return window.matchMedia("(prefers-color-scheme: dark)").matches;
-  });
+const queryClient = new QueryClient();
 
-  useEffect(() => {
-    // Appliquer le mode sombre au document
-    document.documentElement.setAttribute(
-      "data-theme",
-      darkMode ? "dark" : "light"
-    );
-    // Sauvegarder le mode dans localStorage
-    localStorage.setItem("darkMode", darkMode.toString());
-  }, [darkMode]);
-
-  useEffect(() => {
-    const fetchVersion = async () => {
-      try {
-        const versionInfo: VersionInfo = await getVersion();
-        setVersion(versionInfo.version);
-      } catch (error) {
-        console.error("Failed to fetch version:", error);
-        setVersion("unknown");
-      }
-    };
-
-    fetchVersion();
-  }, []);
-
-  const toggleDarkMode = () => {
-    setDarkMode(!darkMode);
-  };
-
-  return (
-    <div className="app">
-      <header className="app-header">
-        <div className="header-container">
-          <div className="brand">
-            <img
-              src={swarmLogo}
-              alt="Swarm Manager Logo"
-              className="app-logo"
-            />
-            <div className="brand-text">
-              <h1>Swarm Manager</h1>
-              {version && <span className="version-badge">v{version}</span>}
-            </div>
-          </div>
-          <nav className="navbar">
-            <NavLink
-              to="/"
-              className={({ isActive }) =>
-                isActive ? "nav-link active" : "nav-link"
-              }
-              end
-            >
-              Dashboard
-            </NavLink>
-            <NavLink
-              to="/images"
-              className={({ isActive }) =>
-                isActive ? "nav-link active" : "nav-link"
-              }
-            >
-              Images
-            </NavLink>
-            <NavLink
-              to="/cleanup"
-              className={({ isActive }) =>
-                isActive ? "nav-link active" : "nav-link"
-              }
-            >
-              Nettoyage
-            </NavLink>
-          </nav>
-          <button
-            className="theme-toggle"
-            onClick={toggleDarkMode}
-            aria-label={
-              darkMode ? "Switch to light mode" : "Switch to dark mode"
-            }
-          >
-            {darkMode ? "☀️" : "🌙"}
-          </button>
-        </div>
-      </header>
-      <main className="main-content">
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <TooltipProvider>
+      <Toaster />
+      <Sonner />
+      <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="stacks/:name" element={<StackDetail />} />
-          <Route path="/images" element={<Images />} />
-          <Route path="/cleanup" element={<Cleanup />} />
+          <Route path="/" element={<Index />} />
+          <Route path="/swarm/nodes" element={<SwarmNodes />} />
+          <Route path="/swarm/stack" element={<SwarmStack />} />
+          <Route path="/swarm/cleanup" element={<SwarmCleanup />} />
+          <Route path="/swarm/logs" element={<SwarmLogs />} />
+          <Route path="/service/:id" element={<ServiceDetail />} />
+          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+          <Route path="*" element={<NotFound />} />
         </Routes>
-      </main>
-    </div>
-  );
-}
+      </BrowserRouter>
+    </TooltipProvider>
+  </QueryClientProvider>
+);
 
 export default App;

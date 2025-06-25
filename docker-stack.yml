@@ -12,9 +12,6 @@ services:
       update_config:
         parallelism: 1
         delay: 10s
-      placement:
-        constraints:
-          - node.role == worker
 
   visualizer:
     image: dockersamples/visualizer
