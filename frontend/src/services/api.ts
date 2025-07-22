@@ -1,4 +1,5 @@
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://swarm.sys.affell.fr/api';
+const API_SOCKET_URL = API_BASE_URL.replace('http', 'ws');
 
 export interface Node {
   id: string;
@@ -186,4 +187,7 @@ class ApiService {
   }
 }
 
-export const apiService = new ApiService();
+const apiService = new ApiService();
+
+export default { apiService };
+export { API_BASE_URL, API_SOCKET_URL };

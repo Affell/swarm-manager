@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { API_SOCKET_URL } from './api';
 
 export const useServiceLogs = (serviceId: string) => {
   const [logs, setLogs] = useState<string[]>([]);
@@ -16,12 +17,8 @@ export const useServiceLogs = (serviceId: string) => {
       setConnecting(true);
       setError(null);
 
-      // Determine WebSocket URL based on current location
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       // Use backend port for WebSocket connection
-      const backendPort = '5000';
-      const hostname = window.location.hostname;
-      const wsUrl = `${protocol}//${hostname}:${backendPort}/api/services/${serviceId}/logs`;
+      const wsUrl = `${API_SOCKET_URL}/services/${serviceId}/logs`;
 
       try {
         const ws = new WebSocket(wsUrl);

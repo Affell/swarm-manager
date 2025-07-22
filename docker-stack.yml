@@ -1,38 +1,29 @@
 version: '3.8'
 
 services:
-  web:
-    image: nginx:alpine
-    ports:
-      - "80:80"
+   swarm-manager:
+    image: ghcr.io/affell/swarm-manager:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     deploy:
-      replicas: 2
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.swarm-manager.rule=Host(`swarm.sys.affell.fr`)
+        - traefik.http.routers.swarm-manager.tls.certresolver=resolver
+        - traefik.http.routers.swarm-manager.entrypoints=websecure
+        - traefik.http.routers.swarm-manager.middlewares=whitelist
+        - traefik.http.services.swarm-manager.loadbalancer.server.port=5000
+        - "traefik.http.routers.swarm-manager.middlewares=websocket-headers"
+        - "traefik.http.middlewares.websocket-headers.headers.customrequestheaders.X-Forwarded-Proto=https"
+        - "traefik.http.middlewares.websocket-headers.headers.customrequestheaders.X-Forwarded-Ssl=on"
+      replicas: 1
       restart_policy:
         condition: on-failure
-      update_config:
-        parallelism: 1
-        delay: 10s
-
-  visualizer:
-    image: dockersamples/visualizer
-    ports:
-      - "8080:8080"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    deploy:
       placement:
         constraints:
           - node.role == manager
-
-  redis:
-    image: redis:alpine
-    ports:
-      - "6379:6379"
-    deploy:
-      replicas: 1
-      placement:
-        constraints:
-          - node.role == manager
+    networks:
+      - public
 
 networks:
   default:
