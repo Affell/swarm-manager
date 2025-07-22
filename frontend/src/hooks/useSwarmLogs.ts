@@ -1,3 +1,4 @@
+import { API_SOCKET_URL } from '@/services/api';
 import { useState, useEffect, useRef } from 'react';
 
 export interface SwarmLogsOptions {
@@ -18,11 +19,6 @@ export const useSwarmLogs = (options: SwarmLogsOptions = {}) => {
   const connectWebSocket = () => {
     setConnecting(true);
     setError(null);
-
-    // Determine WebSocket URL based on current location
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const backendPort = '5000';
-    const hostname = window.location.hostname;
     
     // Build query parameters (only stack and service, not search)
     const params = new URLSearchParams();
@@ -31,7 +27,7 @@ export const useSwarmLogs = (options: SwarmLogsOptions = {}) => {
     // Note: search is handled client-side, not in WebSocket URL
     
     const queryString = params.toString();
-    const wsUrl = `${protocol}//${hostname}:${backendPort}/api/logs/swarm${queryString ? `?${queryString}` : ''}`;
+    const wsUrl = `${API_SOCKET_URL}/logs/swarm${queryString ? `?${queryString}` : ''}`;
 
     try {
       const ws = new WebSocket(wsUrl);
