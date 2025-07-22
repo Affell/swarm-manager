@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -27,6 +28,10 @@ type CustomRecoverConfig struct {
 }
 
 func main() {
+
+	debug := flag.Bool("debug", false, "Enable debug mode")
+	flag.Parse()
+
 	// Initialize Docker client
 	dockerClient, err := infra.NewDockerClient()
 	if err != nil {
@@ -40,9 +45,15 @@ func main() {
 	// Middleware de récupération de panique amélioré
 	e.Use(customRecover())
 
+	allowedOrigins := []string{"https://swarm.sys.affell.fr"}
+	if *debug {
+		// En mode debug, autoriser toutes les origines pour faciliter le développement
+		allowedOrigins = []string{"*"}
+	}
+
 	// CORS middleware avec support WebSocket
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-		AllowOrigins: []string{"https://swarm.sys.affell.fr"},
+		AllowOrigins: allowedOrigins,
 		AllowMethods: []string{echo.GET, echo.POST, echo.PUT, echo.DELETE, echo.OPTIONS},
 		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization, "Upgrade", "Connection", "Sec-WebSocket-Key", "Sec-WebSocket-Version", "Sec-WebSocket-Protocol"},
 	}))

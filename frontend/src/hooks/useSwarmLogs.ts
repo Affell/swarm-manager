@@ -1,5 +1,5 @@
 import { API_SOCKET_URL } from '@/services/api';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 
 export interface SwarmLogsOptions {
   stack?: string;
@@ -15,19 +15,44 @@ export const useSwarmLogs = (options: SwarmLogsOptions = {}) => {
   const [isPaused, setIsPaused] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const bufferRef = useRef<string[]>([]);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const connectWebSocket = () => {
+  // Stabiliser les options pour éviter les re-créations inutiles
+  const stableOptions = useMemo(() => ({
+    stack: options.stack,
+    service: options.service,
+  }), [options.stack, options.service]);
+
+  const cleanupConnection = useCallback(() => {
+    // Nettoyer le timeout de reconnexion
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+    
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+    setConnected(false);
+    setConnecting(false);
+  }, []);
+
+  const connectWebSocket = useCallback(() => {
+    // Clean up any existing connection first
+    cleanupConnection();
+    
     setConnecting(true);
     setError(null);
     
     // Build query parameters (only stack and service, not search)
     const params = new URLSearchParams();
-    if (options.stack) params.append('stack', options.stack);
-    if (options.service) params.append('service', options.service);
+    if (stableOptions.stack) params.append('stack', stableOptions.stack);
+    if (stableOptions.service) params.append('service', stableOptions.service);
     // Note: search is handled client-side, not in WebSocket URL
     
     const queryString = params.toString();
-    const wsUrl = `${API_SOCKET_URL}/logs/swarm${queryString ? `?${queryString}` : ''}`;
+    const wsUrl = `${API_SOCKET_URL}/swarm/logs${queryString ? `?${queryString}` : ''}`;
 
     try {
       const ws = new WebSocket(wsUrl);
@@ -65,40 +90,43 @@ export const useSwarmLogs = (options: SwarmLogsOptions = {}) => {
       };
 
       ws.onerror = (err) => {
-        console.error('WebSocket error:', err);
         setError('Erreur de connexion WebSocket');
         setConnected(false);
         setConnecting(false);
       };
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         setConnected(false);
         setConnecting(false);
-        // Try to reconnect after 5 seconds if not intentionally closed
-        setTimeout(() => {
-          if (!isPaused) {
-            connectWebSocket();
-          }
-        }, 5000);
+        // Only try to reconnect if it wasn't intentionally closed (code 1000)
+        if (!isPaused && event.code !== 1000) {
+          reconnectTimeoutRef.current = setTimeout(() => {
+            // Vérifier que nous ne sommes toujours pas en pause et qu'il n'y a pas déjà une connexion
+            if (!isPaused && !wsRef.current) {
+              connectWebSocket();
+            }
+          }, 5000);
+        }
       };
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur de connexion');
       setConnecting(false);
     }
-  };
+  }, [stableOptions, cleanupConnection, isPaused]);
 
   useEffect(() => {
     if (!isPaused) {
+      // Clear logs when filters change to avoid confusion
+      setLogs([]);
+      bufferRef.current = [];
       connectWebSocket();
     }
 
+    // Cleanup function to close connection when component unmounts or dependencies change
     return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
+      cleanupConnection();
     };
-  }, [options.stack, options.service, isPaused]); // Removed options.search from dependencies
+  }, [stableOptions, isPaused]); // Enlevé connectWebSocket et cleanupConnection des dépendances
 
   const clearLogs = () => {
     setLogs([]);
@@ -107,9 +135,7 @@ export const useSwarmLogs = (options: SwarmLogsOptions = {}) => {
 
   const pause = () => {
     setIsPaused(true);
-    if (wsRef.current) {
-      wsRef.current.close();
-    }
+    cleanupConnection();
   };
 
   const resume = () => {
@@ -119,6 +145,7 @@ export const useSwarmLogs = (options: SwarmLogsOptions = {}) => {
       setLogs(prev => [...prev, ...bufferRef.current].slice(-1000));
       bufferRef.current = [];
     }
+    // Connection will be re-established by useEffect
   };
 
   const downloadLogs = () => {
