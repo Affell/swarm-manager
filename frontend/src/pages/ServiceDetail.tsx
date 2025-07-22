@@ -283,7 +283,7 @@ const ServiceDetail = () => {
             </Card>
 
             {/* Networks */}
-            {service.networks.length > 0 && (
+            {service.networks && service.networks.length > 0 && (
               <Card className="bg-gray-800 border-gray-700">
                 <CardHeader>
                   <CardTitle className="text-white flex items-center">
@@ -308,7 +308,7 @@ const ServiceDetail = () => {
             )}
 
             {/* Ports */}
-            {service.ports.length > 0 && (
+            {service.ports && service.ports.length > 0 && (
               <Card className="bg-gray-800 border-gray-700">
                 <CardHeader>
                   <CardTitle className="text-white flex items-center">
